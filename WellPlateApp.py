@@ -24,10 +24,6 @@ class WellPlate:
         self._yOff       = yOff
         self._rectMargin = 2
         self._winMargin  = 10
-    
-        # and how about to draw some paintings today...?!    
-        self._canvas = tk.Canvas(master)
-        self._canvas.pack()
         
         # we need some colors to make it nice
         self._defaultColor      = 'white'
@@ -40,12 +36,20 @@ class WellPlate:
         self._lastMovedToWell = None
         self._lastClickedWell = None
         
+        self._defaultWellTags = ('well', 'notClicked')
+    
+        # and how about to draw some paintings today...?!    
+        self._canvas = tk.Canvas(master)
+        self._canvas.pack()
         # we wanna see what's going on, so let's define some events...
-        # we want to click on the wells, so connect the click event
-        self._canvas.bind( '<Button-1>', self._EventHandler )
+        # we want to click on the wells, so connect the left click event
+        self._canvas.bind( '<Button-1>', self._ClickHandler )
+        # we wanna see what's going on, so let's define some events...
+        # we want to click on the wells, so connect the double left click event
+        self._canvas.bind( '<Double-Button-1>', self._DoubleClickHandler )
         # and since it's nice to see where we are and because we can
         # highlight the well with the motion event
-        self._canvas.bind( '<Motion>'  , self._EventHandler )
+        self._canvas.bind( '<Motion>'  , self._MotionHandler )
 
 ### --------------------------------------------------------------------------------------------------
 
@@ -104,7 +108,7 @@ class WellPlate:
                     # let's get started with the wells...
                     # but don't put one in the corner x=0,y=0
                     elif row > 0 and col > 0:
-                        self._canvas.create_oval( (x, y, x+self._dia, y+self._dia), fill=self._defaultColor, tags='well')
+                        self._canvas.create_oval( (x, y, x+self._dia, y+self._dia), fill=self._defaultColor, tags=self._defaultWellTags)
     
         # draw a rectangle around the whole thing, if we are finished
         self._canvas.create_rectangle(
@@ -116,8 +120,72 @@ class WellPlate:
         
 ### --------------------------------------------------------------------------------------------------
         
-    def _EventHandler(self, event):
-        """ function to process connected events and color well accordingly """
+    def _ClickHandler(self, event):
+        """ function to process click actions on canvas element to change well color accordingly """
+        
+        # we can easily find our current well with the tag 'current'
+        eventItem = self._canvas.find_withtag('current')
+
+        # what tags do this guy already have?
+        tags = self._canvas.gettags(eventItem)
+        
+        # have we found something?
+        # ...maybe a well...
+        if len(eventItem) > 0 and 'well' in tags:
+        
+            # we need to update the last clicked item...we found another one
+            self._lastClickedWell = eventItem
+            
+            # if it wasn't clicked already, add it...
+            if 'notClicked' in tags:
+                
+                # first remove 'notClicked' tag
+                tags = tuple(tag for tag in tags if tag != 'notClicked')
+                
+                # now add clicked tag
+                tags += ('clicked',)
+                
+                # the user also needs to see that it was clicked
+                # so let's change the color...
+                # don't forget to update the tags
+                self._canvas.itemconfig(eventItem, fill=self._clickedColor, tags=tags)
+        
+### --------------------------------------------------------------------------------------------------
+        
+    def _DoubleClickHandler(self, event):
+        """ function to process double-click actions on canvas element to change well color accordingly """
+        
+        # we can easily find our current well with the tag 'current'
+        eventItem = self._canvas.find_withtag('current')
+
+        # what tags do this guy already have?
+        tags = self._canvas.gettags(eventItem)
+        
+        # have we found something?
+        # ...maybe a well...
+        if len(eventItem) > 0 and 'well' in tags:
+        
+            # we need to update the last clicked item...we found another one
+            self._lastClickedWell = eventItem
+            
+            # if the guy was clicked, then let's reset it
+            if 'clicked' in tags:
+                
+                # first remove 'clicked' tag
+                tags = tuple(tag for tag in tags if tag != 'clicked')
+                
+                # now add clicked tag
+                tags += ('notClicked',)
+                
+                # the user also needs to see that it was clicked
+                # so let's change the color...
+                # don't forget to update the tags
+                self._canvas.itemconfig(eventItem, fill=self._defaultColor, tags=tags)
+        
+### --------------------------------------------------------------------------------------------------
+        
+    def _MotionHandler(self, event):
+        """ function to process motion actions on canvas element to change well color accordingly """
         
         # we can easily find our current well with the tag 'current'
         eventItem = self._canvas.find_withtag('current')
@@ -129,54 +197,34 @@ class WellPlate:
         # ...maybe a well...
         if len(eventItem) > 0 and 'well' in tags:
             
-            # was the item clicked?
-            if event.type == tk.EventType.ButtonPress:
+            # is this well the same as the last one?
+            # if not, we need to reset the color and update the last move-to item
+            # we don't need to care about _lastMovedToWell=None at the moment
+            if eventItem != self._lastMovedToWell:
                 
-                # we need to update the last clicked item...we found another one
-                self._lastClickedWell = eventItem
-                
-                # if it wasn't clicked already, add it...
-                if 'clicked' not in tags:
-                    
-                    tags += ('clicked',)
-                    
-                    # the user also needs to see that it was clicked
-                    # so let's change the color...
-                    # don't forget to update the tags
-                    self._canvas.itemconfig(eventItem, fill=self._clickedColor, tags=tags)
-    
-        
-            # well, if it was no click that we saw, maybe it was a movement...
-            elif event.type == tk.EventType.Motion:
-                
-                # is this well the same as the last one?
-                # if not, we need to reset the color and update the last move-to item
-                # we don't need to care about _lastMovedToWell=None at the moment
-                if eventItem != self._lastMovedToWell:
-                    
-                    # we want to reset the color of the wells if we move out
-                    # so let's get the wells...
-                    # but watch out, don't reset the ones that were already clicked
-                    if self._lastMovedToWell:
-                        if 'clicked' in self._canvas.gettags(self._lastMovedToWell):
-                            self._canvas.itemconfig( self._lastMovedToWell, fill=self._clickedColor )
-                            
-                        # only if not clicked, default color is ok
-                        else:
-                            self._canvas.itemconfig( self._lastMovedToWell, fill=self._defaultColor )
-                    
-                    
-                    # after we have reset the left well, we can deal with the new one...
-                    # here we also need to consider if it was already clicked or not
-                    if 'clicked' in tags:
-                        self._canvas.itemconfig( eventItem, fill=self._clickAndHighColor )
+                # we want to reset the color of the wells if we move out
+                # so let's get the wells...
+                # but watch out, don't reset the ones that were already clicked
+                if self._lastMovedToWell:
+                    if 'clicked' in self._canvas.gettags(self._lastMovedToWell):
+                        self._canvas.itemconfig( self._lastMovedToWell, fill=self._clickedColor )
+                        
+                    # only if not clicked, default color is ok
                     else:
-                        self._canvas.itemconfig( eventItem, fill=self._highlightedColor  )
-                    
-                    # update last move-to item after updating
-                    self._lastMovedToWell = eventItem
-                    
-                    
+                        self._canvas.itemconfig( self._lastMovedToWell, fill=self._defaultColor )
+                
+                
+                # after we have reset the left well, we can deal with the new one...
+                # here we also need to consider if it was already clicked or not
+                if 'clicked' in tags:
+                    self._canvas.itemconfig( eventItem, fill=self._clickAndHighColor )
+                else:
+                    self._canvas.itemconfig( eventItem, fill=self._highlightedColor  )
+                
+                # update last move-to item after updating
+                self._lastMovedToWell = eventItem
+                
+                
         # but wait, what if we leave the well area?
         # we still need to reset the last moved-to element...
         elif (len(eventItem) == 0 or 'row' in tags or 'col' in tags) and self._lastMovedToWell:
@@ -246,24 +294,12 @@ class WellPlate:
           
 ### --------------------------------------------------------------------------------------------------
               
-    def _UpdateColorScheme(self, color, tag='default'):
-        """ function to update default and clicked well color
-            NOTE: planned to use only find_withtag(tag)
-                  we need to serve a tag for not clicked wells...
-                  but it's not so easy to remove it after they were clicked...
-        """
+    def _UpdateColorScheme(self, color, tags=('notClicked',)):
+        """ function to update default and clicked well color """
         
-        # if we need to reset the default color
-        # watch out, we should not consider the clicked ones
-        if tag == 'default':
-            for well in self._canvas.find_withtag('well'):
-                if 'clicked' not in self._canvas.gettags(well):
-                    self._canvas.itemconfig(well, fill=color)
-        
-        # update the clicked (highlighted ones)
-        elif tag == 'clicked':
-            for well in self.master.find_withtag(tag):
-                self._canvas.itemconfig(well, fill=color)
+        # just update color with given tags
+        for well in self.master.find_withtag(tags):
+            self._canvas.itemconfig(well, fill=color)
 
 
 
